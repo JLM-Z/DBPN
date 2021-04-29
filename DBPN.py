@@ -24,7 +24,7 @@ def up_sampling(inputs, shape, w_init, b_init, gamma_init, scale, block, is_trai
         tl.layers.set_name_reuse(reuse)
         # inputs = InputLayer(x, name="input")  # 将输入数据转化为
         # _, w, h, c = x.shape()   # 获取输入数据的各个维度
-        up1 = DeConv2d(inputs, 32, (4, 4), (shape[0] * scale, shape[1] * scale), padding="SAME",  # 上采样层 输出维度为（None,
+        up1 = DeConv2d(inputs, 32, (4, 4), (shape[0] * scale, shape[1] * scale), strides=(scale,scale), padding="SAME",  # 上采样层 输出维度为（None,
                        W_init=w_init, b_init=b_init, name="deconv1")    #  w * scale, h * scale, 64）
         up1 = BatchNormLayer(up1, act=tf.nn.relu, is_train=is_train, gamma_init=gamma_init, name="bn1")  # 标准化
 
@@ -35,7 +35,7 @@ def up_sampling(inputs, shape, w_init, b_init, gamma_init, scale, block, is_trai
 
         err_ = ElementwiseLayer([conv1, inputs], tf.subtract, name="error")     # 计算误差
 
-        up2 = DeConv2d(err_, 32, (4, 4), (shape[0] * scale, shape[1] * scale), padding="SAME",    # 将上一步的误差转化为相应的高分辨的补充值
+        up2 = DeConv2d(err_, 32, (4, 4), (shape[0] * scale, shape[1] * scale), strides=(scale, scale), padding="SAME",    # 将上一步的误差转化为相应的高分辨的补充值
                        W_init=w_init, b_init=b_init, name="deconv2")
         up2 = BatchNormLayer(up2, act=tf.nn.tanh, is_train=is_train, gamma_init=gamma_init, name="bn3")  # 标准化 使用tanh作为激活函数
 
@@ -75,7 +75,7 @@ def down_sampling(inputs, shape, w_init, b_init, gamma_init, scale, block, is_tr
         conv1 = BatchNormLayer(conv1, act=lambda x: tl.act.lrelu(x, 0.2),       # 标准化  激活函数为lrelu
                                is_train=is_train, gamma_init=gamma_init, name="bn1")
 
-        up1 = DeConv2d(conv1, 32, (4, 4), out_size=(shape[0], shape[1]), padding="SAME",  # 上采样层  输出的特征图维度应和输入数据的相同
+        up1 = DeConv2d(conv1, 32, (4, 4), out_size=(shape[0], shape[1]), strides=(scale, scale), padding="SAME",  # 上采样层  输出的特征图维度应和输入数据的相同
                        W_init=w_init, b_init=b_init, name="deconv1")
         up1 = BatchNormLayer(up1, act=tf.nn.relu, is_train=is_train, gamma_init=gamma_init, name="bn2")  # 标准化
 
@@ -141,11 +141,14 @@ if __name__=="__main__":
     with open("images\\testing.pickle", 'rb') as f:
         X_test = pickle.load(f)
     ind = np.random.randint(low=0, high=X_test.shape[0]-1, size=50)
-    Test = X_test[ind]
+    Test = (X_test[ind]+1)/2
+
     _,nw,nh,nz= X_test.shape
     t_image_good = tf.placeholder('float32', [50, nw, nh, nz], name='good_image')
 
     net = back_projection(t_image_good,scale=2,is_train=True,reuse=False)
     sess = tf.Session(config=tf.ConfigProto(allow_soft_placement=True))
+    tl.layers.initialize_global_variables(sess)
+
     sess.run(net,feed_dict={t_image_good:Test})
 
